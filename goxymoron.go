@@ -18,6 +18,24 @@ func Transform(body []byte) (output []byte) {
         -1)
 }
 
+var MyTransport http.Transport
+var MyHTTPClient http.Client
+
+func init() {
+    // Default idle conns is supposed to be 100 but Go is recycling connections
+    // even when we only do 100 parallel requests.
+    MyTransport.MaxIdleConnsPerHost = 1000
+    MyTransport.MaxIdleConns = 1000
+    // New in Go 1.11
+    //MyTransport.MaxConnsPerHost = 1000
+
+    // This doesn't affect the content but maybe it shortcuts some unnecessary
+    // work.
+    MyTransport.DisableCompression = true
+
+    MyHTTPClient.Transport = &MyTransport
+}
+
 func (this ResponseForwarder) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
     backend_url := *req.URL
     backend_url.Host = "localhost:23206"
@@ -29,7 +47,7 @@ func (this ResponseForwarder) ServeHTTP(resp http.ResponseWriter, req *http.Requ
         return
     }
 
-    backend_response, err := http.DefaultClient.Do(backend_request)
+    backend_response, err := MyHTTPClient.Do(backend_request)
     var body []byte
     if err == nil {
         body, err = ioutil.ReadAll(backend_response.Body)
